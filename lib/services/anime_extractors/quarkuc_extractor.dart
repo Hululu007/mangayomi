@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:http_interceptor/http_interceptor.dart';
 import 'package:mangayomi/models/video.dart';
 import 'package:mangayomi/services/http/m_client.dart';
+import 'dart:io';
 
 enum CloudDriveType {
   quark,
@@ -12,10 +13,10 @@ enum CloudDriveType {
 
 class QuarkUcExtractor {
   late CloudDriveType cloudDriveType;
-  String apiUrl = ""; //"https://drive-pc.quark.cn/1/clouddrive/";
-  String cookie = "";
+  String apiUrl = "";
+  //String cookie = "";
   Map<String, dynamic> shareTokenCache = {};
-  String pr = ""; //"pr=ucpro&fr=pc";
+  String pr = "";
   final List<String> subtitleExts = ['.srt', '.ass', '.scc', '.stl', '.ttml'];
   Map<String, String> saveFileIdCaches = {};
   String? saveDirId;
@@ -23,7 +24,6 @@ class QuarkUcExtractor {
 
   Future<void> initCloudDrive(
       String cookie, CloudDriveType cloudDriveType) async {
-    this.cookie = cookie;
     this.cloudDriveType = cloudDriveType;
     if (cloudDriveType == CloudDriveType.quark) {
       apiUrl = "https://drive-pc.quark.cn/1/clouddrive/";
@@ -32,28 +32,46 @@ class QuarkUcExtractor {
       apiUrl = "https://pc-api.uc.cn/1/clouddrive/";
       pr = "pr=UCBrowser&fr=pc";
     }
+
+    if (cookie.isNotEmpty && getCurrentCookie().isEmpty) {
+      final url = cloudDriveType == CloudDriveType.quark
+          ? 'https://pan.quark.cn'
+          : 'https://drive.uc.cn';
+      final ua = getHeaders()['User-Agent'] ?? '';
+      await MClient.setCookie(url, ua, cookie: cookie);
+    }
+  }
+
+  String getCurrentCookie() {
+    final apiHost = cloudDriveType == CloudDriveType.quark
+        ? 'https://drive-pc.quark.cn'
+        : 'https://pc-api.uc.cn';
+
+    var cookies = MClient.getCookiesPref(apiHost);
+    if (cookies.isEmpty) {
+      final url = cloudDriveType == CloudDriveType.quark
+          ? 'https://pan.quark.cn'
+          : 'https://drive.uc.cn';
+      cookies = MClient.getCookiesPref(url);
+    }
+    print(cookies);
+    return cookies[HttpHeaders.cookieHeader] ?? '';
   }
 
   Map<String, String> getHeaders() {
-    if (cloudDriveType == CloudDriveType.quark) {
-      return {
-        'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) quark-cloud-drive/2.5.20 Chrome/100.0.4896.160 Electron/18.3.5.4-b478491100 Safari/537.36 Channel/pckk_other_ch',
-        'Referer': 'https://pan.quark.cn/',
-        "Content-Type": "application/json",
-        "Cookie": cookie,
-        "Host": "drive-pc.quark.cn"
-      };
-    } else {
-      return {
-        'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) uc-cloud-drive/2.5.20 Chrome/100.0.4896.160 Electron/18.3.5.4-b478491100 Safari/537.36 Channel/pckk_other_ch',
-        'Referer': 'https://drive.uc.cn/',
-        "Content-Type": "application/json",
-        "Cookie": cookie,
-        "Host": "pc-api.uc.cn"
-      };
-    }
+    return {
+      'User-Agent': cloudDriveType == CloudDriveType.quark
+          ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) quark-cloud-drive/2.5.20 Chrome/100.0.4896.160 Electron/18.3.5.4-b478491100 Safari/537.36 Channel/pckk_other_ch'
+          : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) uc-cloud-drive/2.5.20 Chrome/100.0.4896.160 Electron/18.3.5.4-b478491100 Safari/537.36 Channel/pckk_other_ch',
+      'Referer': cloudDriveType == CloudDriveType.quark
+          ? 'https://pan.quark.cn/'
+          : 'https://drive.uc.cn',
+      'Content-Type': 'application/json',
+      'Cookie': getCurrentCookie(),
+      'Host': cloudDriveType == CloudDriveType.quark
+          ? 'drive-pc.quark.cn'
+          : 'pc-api.uc.cn'
+    };
   }
 
   Future<Map<String, dynamic>> api(
@@ -67,21 +85,21 @@ class QuarkUcExtractor {
     } else {
       resp = await client.get(Uri.parse(apiUrl + url), headers: getHeaders());
     }
-    if (resp.headers['set-cookie'] != null) {
-      final puus = resp.headers['set-cookie']!
-          .split(';;;')
-          .join()
-          .split(';')
-          .firstWhere((element) => element.startsWith('__puus='),
-              orElse: () => '');
-      if (puus.isNotEmpty) {
-        final newPuus = puus.split('=')[1];
-        if (cookie.contains('__puus=')) {
-          cookie =
-              cookie.replaceFirst(RegExp(r'__puus=[^;]+'), '__puus=$newPuus');
-        }
-      }
-    }
+    // if (resp.headers['set-cookie'] != null) {
+    //   final puus = resp.headers['set-cookie']!
+    //       .split(';;;')
+    //       .join()
+    //       .split(';')
+    //       .firstWhere((element) => element.startsWith('__puus='),
+    //           orElse: () => '');
+    //   if (puus.isNotEmpty) {
+    //     final newPuus = puus.split('=')[1];
+    //     if (cookie.contains('__puus=')) {
+    //       cookie =
+    //           cookie.replaceFirst(RegExp(r'__puus=[^;]+'), '__puus=$newPuus');
+    //     }
+    //   }
+    // }
     return jsonDecode(resp.body);
   }
 
@@ -458,7 +476,6 @@ class QuarkUcExtractor {
         }
       }
     }
-
     // 为所有视频添加字幕
     for (var video in videos) {
       video.subtitles = subtitles;
