@@ -68,9 +68,9 @@ class QuarkUcExtractor {
           : 'https://drive.uc.cn',
       'Content-Type': 'application/json',
       'Cookie': getCurrentCookie(),
-      'Host': cloudDriveType == CloudDriveType.quark
-          ? 'drive-pc.quark.cn'
-          : 'pc-api.uc.cn'
+      // 'Host': cloudDriveType == CloudDriveType.quark
+      //     ? 'drive-pc.quark.cn'
+      //     : 'pc-api.uc.cn'
     };
   }
 
@@ -421,7 +421,6 @@ class QuarkUcExtractor {
     List<Video> videos = [];
     if (type == "uc") {
       var headers = getHeaders();
-      headers.remove('Host');
       headers.remove('Content-Type');
       String? url = (await getDownload(
           shareId, stoken, fileId, fileToken, true))?['download_url'];
@@ -429,13 +428,12 @@ class QuarkUcExtractor {
         videos.add(Video(url, "原画", url, headers: headers));
       }
     } else {
+      var headers = getHeaders();
       String? originalUrl = (await getLiveTranscoding(
               shareId, stoken, fileId, fileToken, "4k")) ??
           (await getLiveTranscoding(
               shareId, stoken, fileId, fileToken, 'super'));
-      var headers = getHeaders();
-      headers.remove('Host');
-      headers.remove('Content-Type');
+
       for (String quality in qualities) {
         if (quality == "原画") {
           String? url = (await getDownload(
